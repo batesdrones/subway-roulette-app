@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Subway Roulette</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+</head>
+<body>
+    <div id="roulette-container">
+        <h1>Subway Roulette</h1>
+        <div id="wheel-container">
+            <div id="wheel">
+                <img id="initial-image" src="img/background.jpg" alt="Subway Roulette" />
+            </div>
+        </div>
+        <div id="borough-selection">
+            <h2>Select Boroughs:</h2>
+            <label><input type="checkbox" id="all" value="all" checked> All</label>
+            <label><input type="checkbox" id="manhattan" value="Manhattan"> Manhattan</label>
+            <label><input type="checkbox" id="brooklyn" value="Brooklyn"> Brooklyn</label>
+            <label><input type="checkbox" id="queens" value="Queens"> Queens</label>
+            <label><input type="checkbox" id="bronx" value="Bronx"> Bronx</label>
+            <label><input type="checkbox" id="statenisland" value="Staten Island"> Staten Island</label>
+        </div>
+        <button id="spin-button">Spin!</button>
+        <div id="output">
+            <div id="line-images"></div>
+            <div id="station-info"></div> </div>
+        <div id="map" style="height: 400px; width: 600px;"></div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
