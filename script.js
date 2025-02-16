@@ -11,28 +11,29 @@ document.addEventListener('DOMContentLoaded', () => {
     // Function to create train line images
     function createTrainLineImages(routesString) {
         if (!routesString) return '';
-        
         const routes = routesString.split(' ').filter(route => route.length > 0);
         return routes.map(route => {
-            // Clean the route name to match image filename
             const cleanRoute = route.replace(/[^A-Za-z0-9]/g, '').toLowerCase();
             return `<img src="img/${cleanRoute}train.png" alt="${route}" class="train-icon" title="${route}">`;
         }).join('');
     }
 
-    // Modified CSV loading with better CORS and error handling
-    Papa.parse('./cors.php', {
+    // Load CSV data
+    Papa.parse('./data/MTA_Subway_stations.csv', {
         download: true,
         header: true,
         dynamicTyping: true,
         complete: (results) => {
             if (results.data && results.data.length > 0) {
+                // Filter out any rows with missing required data
                 stations = results.data.filter(station => 
                     station['Stop Name'] && 
                     station['BoroName'] && 
-                    station['Line']
+                    station['Line'] &&
+                    station['GTFS Latitude'] &&
+                    station['GTFS Longitude']
                 );
-                console.log("CSV data loaded successfully");
+                console.log("CSV data loaded successfully:", stations.length, "stations");
                 spinButton.disabled = false;
                 spinButton.textContent = "Spin!";
             } else {
@@ -41,17 +42,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 spinButton.disabled = true;
             }
         },
-        error: function(error) {
-            console.error('Error loading CSV:', error);
-            output.innerHTML = `
-                <div style="color: red; padding: 10px;">
-                    Error loading station data. Please ensure:
-                    <ul>
-                        <li>The CSV file is in the correct location (./data/MTA_Subway_stations.csv)</li>
-                        <li>The file permissions are set correctly</li>
-                        <li>The server is configured to serve CSV files</li>
-                    </ul>
-                </div>`;
+        error: (error) => {
+            console.error("Error parsing CSV:", error);
+            output.textContent = "Error loading station data. Please try again later.";
             spinButton.disabled = true;
         }
     });
@@ -79,69 +72,41 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Function to create wheel segments
-    function createWheelSegments(stations, selectedStation) {
-        wheel.innerHTML = '';
-        const segmentColors = ['#FF0000', '#000000']; // Traditional roulette colors
-        const selectedIndex = stations.findIndex(station => 
-            station['Stop Name'] === selectedStation['Stop Name'] &&
-            station['Line'] === selectedStation['Line']
-        );
-        
-        console.log("Selected station:", selectedStation['Stop Name']);
-        console.log("Selected index:", selectedIndex);
-        
-        stations.forEach((station, index) => {
-            const segment = document.createElement('div');
-            segment.classList.add('segment');
-            
-            // Calculate angle for this segment
-            const segmentAngle = (360 / stations.length) * index;
-            segment.style.transform = `rotate(${segmentAngle}deg)`;
-            
-            // Set background color
-            segment.style.backgroundColor = segmentColors[index % 2];
-            segment.textContent = station['Stop Name'];
-            
-            // Highlight selected station
-            if (index === selectedIndex) {
-                segment.classList.add('selected-segment');
-                console.log("Highlighting segment:", station['Stop Name']);
-            }
-            
-            wheel.appendChild(segment);
-        });
-        
-        return selectedIndex;
-    }
-
+    let currentRotation = 0;
     spinButton.addEventListener('click', () => {
+        // Get selected boroughs
         const selectedBoroughs = Array.from(boroughCheckboxes)
             .filter(cb => cb.checked && cb.id !== 'all')
             .map(cb => cb.value);
 
-        if (selectedBoroughs.length === 0 && !allCheckbox.checked) {
-            output.textContent = "Please select at least one borough.";
-            return;
+        console.log("Selected boroughs:", selectedBoroughs);
+
+        // Filter stations based on selection
+        let filteredStations;
+        if (allCheckbox.checked) {
+            filteredStations = stations;
+        } else {
+            filteredStations = stations.filter(station => selectedBoroughs.includes(station.BoroName));
         }
 
-        const filteredStations = allCheckbox.checked 
-            ? stations 
-            : stations.filter(station => selectedBoroughs.includes(station.BoroName));
+        console.log("Filtered stations count:", filteredStations.length);
 
         if (filteredStations.length === 0) {
             output.textContent = "No stations found for selected boroughs.";
             return;
         }
 
-        // First reset the wheel
-        wheel.style.transition = 'none';
-        wheel.style.transform = 'rotate(0deg)';
-        
         // Select random station
         const randomIndex = Math.floor(Math.random() * filteredStations.length);
         const selectedStation = filteredStations[randomIndex];
-        
+
+        console.log("Selected station:", selectedStation);
+
+        // Reset wheel position
+        wheel.style.transition = 'none';
+        wheel.style.transform = 'rotate(0deg)';
+        void wheel.offsetWidth; // Force reflow
+
         // Create wheel segments
         wheel.innerHTML = '';
         const segmentAngle = 360 / filteredStations.length;
@@ -149,33 +114,21 @@ document.addEventListener('DOMContentLoaded', () => {
         filteredStations.forEach((station, index) => {
             const segment = document.createElement('div');
             segment.classList.add('segment');
-            
-            // Calculate angle for this segment
-            const rotation = segmentAngle * index;
-            segment.style.transform = `rotate(${rotation}deg)`;
-            
-            // Set background color
+            segment.style.transform = `rotate(${segmentAngle * index}deg)`;
             segment.style.backgroundColor = index % 2 === 0 ? '#FF0000' : '#000000';
             segment.textContent = station['Stop Name'];
             
-            // Highlight selected station
-            if (station['Stop Name'] === selectedStation['Stop Name']) {
+            if (index === randomIndex) {
                 segment.classList.add('selected-segment');
-                console.log("Found selected station:", station['Stop Name']);
             }
             
             wheel.appendChild(segment);
         });
 
-        // Force a reflow before starting the animation
-        void wheel.offsetWidth;
-        
-        // Calculate final rotation
-        const spinRotations = 5; // Number of full spins
-        const finalRotation = (spinRotations * 360) + (360 - (segmentAngle * randomIndex));
-        
         // Apply spin animation
         wheel.style.transition = 'transform 3s cubic-bezier(0.25, 0.1, 0.25, 1)';
+        const spinRotations = 5; // Number of full rotations
+        const finalRotation = (spinRotations * 360) + (360 - (segmentAngle * randomIndex));
         wheel.style.transform = `rotate(${finalRotation}deg)`;
 
         // Update map
@@ -204,7 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 .openPopup();
         }
 
-        // Update output information with train line images
+        // Update output information
         output.innerHTML = `
             <h2>${selectedStation['Stop Name']}</h2>
             <div class="train-lines">
