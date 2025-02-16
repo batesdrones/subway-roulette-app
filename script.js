@@ -11,25 +11,34 @@ document.addEventListener('DOMContentLoaded', () => {
     // Function to create train line images
     function createTrainLineImages(routesString) {
         if (!routesString) return '';
-        
         const routes = routesString.split(' ').filter(route => route.length > 0);
         return routes.map(route => {
-            // Clean the route name to match image filename
             const cleanRoute = route.replace(/[^A-Za-z0-9]/g, '').toLowerCase();
             return `<img src="img/${cleanRoute}train.png" alt="${route}" class="train-icon" title="${route}">`;
         }).join('');
     }
 
-    // Modified CSV loading to use fetch API
+    // Load CSV data
     fetch('MTA_Subway_stations.csv')
-        .then(response => response.text())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.text();
+        })
         .then(csvData => {
             Papa.parse(csvData, {
                 header: true,
                 dynamicTyping: true,
                 complete: (results) => {
-                    stations = results.data;
-                    console.log("CSV data loaded:", stations);
+                    stations = results.data.filter(station => 
+                        station['Stop Name'] && 
+                        station['BoroName'] && 
+                        station['Line']
+                    );
+                    console.log("CSV data loaded successfully:", stations.length, "stations");
+                    spinButton.disabled = false;
+                    spinButton.textContent = "Spin!";
                 },
                 error: (error) => {
                     console.error("Error parsing CSV:", error);
@@ -65,55 +74,20 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Function to create wheel segments
-    function createWheelSegments(stations, selectedStation) {
-        wheel.innerHTML = '';
-        const segmentColors = ['#FF0000', '#000000']; // Traditional roulette colors
-        const selectedIndex = stations.findIndex(station => 
-            station['Stop Name'] === selectedStation['Stop Name'] &&
-            station['Line'] === selectedStation['Line']
-        );
-        
-        console.log("Selected station:", selectedStation['Stop Name']);
-        console.log("Selected index:", selectedIndex);
-        
-        stations.forEach((station, index) => {
-            const segment = document.createElement('div');
-            segment.classList.add('segment');
-            
-            // Calculate angle for this segment
-            const segmentAngle = (360 / stations.length) * index;
-            segment.style.transform = `rotate(${segmentAngle}deg)`;
-            
-            // Set background color
-            segment.style.backgroundColor = segmentColors[index % 2];
-            segment.textContent = station['Stop Name'];
-            
-            // Highlight selected station
-            if (index === selectedIndex) {
-                segment.classList.add('selected-segment');
-                console.log("Highlighting segment:", station['Stop Name']);
-            }
-            
-            wheel.appendChild(segment);
-        });
-        
-        return selectedIndex;
-    }
-
     let currentRotation = 0;
-    const baseSpins = 5; // Number of full rotations
-
     spinButton.addEventListener('click', () => {
+        // Get selected boroughs
         const selectedBoroughs = Array.from(boroughCheckboxes)
             .filter(cb => cb.checked && cb.id !== 'all')
             .map(cb => cb.value);
 
+        // Validate selection
         if (selectedBoroughs.length === 0 && !allCheckbox.checked) {
             output.textContent = "Please select at least one borough.";
             return;
         }
 
+        // Filter stations based on selection
         const filteredStations = allCheckbox.checked 
             ? stations 
             : stations.filter(station => selectedBoroughs.includes(station.BoroName));
@@ -127,19 +101,35 @@ document.addEventListener('DOMContentLoaded', () => {
         const randomIndex = Math.floor(Math.random() * filteredStations.length);
         const selectedStation = filteredStations[randomIndex];
 
-        // Create wheel segments and get selected index
-        const selectedIndex = createWheelSegments(filteredStations, selectedStation);
-        
-        // Calculate new rotation to land on selected station
+        console.log("Selected station:", selectedStation);
+
+        // Reset wheel position
+        wheel.style.transition = 'none';
+        wheel.style.transform = 'rotate(0deg)';
+        void wheel.offsetWidth; // Force reflow
+
+        // Create wheel segments
+        wheel.innerHTML = '';
         const segmentAngle = 360 / filteredStations.length;
-        const targetAngle = -segmentAngle * selectedIndex; // Negative angle to align selected segment at top
-        currentRotation = (baseSpins * 360) + targetAngle;
         
-        // Apply consistent spin animation
+        filteredStations.forEach((station, index) => {
+            const segment = document.createElement('div');
+            segment.classList.add('segment');
+            segment.style.transform = `rotate(${segmentAngle * index}deg)`;
+            segment.style.backgroundColor = index % 2 === 0 ? '#FF0000' : '#000000';
+            segment.textContent = station['Stop Name'];
+            
+            if (station['Stop Name'] === selectedStation['Stop Name']) {
+                segment.classList.add('selected-segment');
+            }
+            
+            wheel.appendChild(segment);
+        });
+
+        // Apply spin animation
+        wheel.style.transition = 'transform 3s cubic-bezier(0.25, 0.1, 0.25, 1)';
+        currentRotation += 1800 + (360 - (segmentAngle * randomIndex)); // 5 full rotations + alignment
         wheel.style.transform = `rotate(${currentRotation}deg)`;
-        
-        console.log("Target angle:", targetAngle);
-        console.log("Current rotation:", currentRotation);
 
         // Update map
         if (selectedStation['GTFS Latitude'] && selectedStation['GTFS Longitude']) {
@@ -167,7 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 .openPopup();
         }
 
-        // Update output information with train line images
+        // Update output information
         output.innerHTML = `
             <h2>${selectedStation['Stop Name']}</h2>
             <div class="train-lines">
