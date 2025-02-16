@@ -101,6 +101,9 @@ document.addEventListener('DOMContentLoaded', () => {
         return selectedIndex;
     }
 
+    let currentRotation = 0;
+    const baseSpins = 5; // Number of full rotations
+
     spinButton.addEventListener('click', () => {
         const selectedBoroughs = Array.from(boroughCheckboxes)
             .filter(cb => cb.checked && cb.id !== 'all')
@@ -120,49 +123,23 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // First reset the wheel
-        wheel.style.transition = 'none';
-        wheel.style.transform = 'rotate(0deg)';
-        
         // Select random station
         const randomIndex = Math.floor(Math.random() * filteredStations.length);
         const selectedStation = filteredStations[randomIndex];
-        
-        // Create wheel segments
-        wheel.innerHTML = '';
-        const segmentAngle = 360 / filteredStations.length;
-        
-        filteredStations.forEach((station, index) => {
-            const segment = document.createElement('div');
-            segment.classList.add('segment');
-            
-            // Calculate angle for this segment
-            const rotation = segmentAngle * index;
-            segment.style.transform = `rotate(${rotation}deg)`;
-            
-            // Set background color
-            segment.style.backgroundColor = index % 2 === 0 ? '#FF0000' : '#000000';
-            segment.textContent = station['Stop Name'];
-            
-            // Highlight selected station
-            if (station['Stop Name'] === selectedStation['Stop Name']) {
-                segment.classList.add('selected-segment');
-                console.log("Found selected station:", station['Stop Name']);
-            }
-            
-            wheel.appendChild(segment);
-        });
 
-        // Force a reflow before starting the animation
-        void wheel.offsetWidth;
+        // Create wheel segments and get selected index
+        const selectedIndex = createWheelSegments(filteredStations, selectedStation);
         
-        // Calculate final rotation
-        const spinRotations = 5; // Number of full spins
-        const finalRotation = (spinRotations * 360) + (360 - (segmentAngle * randomIndex));
+        // Calculate new rotation to land on selected station
+        const segmentAngle = 360 / filteredStations.length;
+        const targetAngle = -segmentAngle * selectedIndex; // Negative angle to align selected segment at top
+        currentRotation = (baseSpins * 360) + targetAngle;
         
-        // Apply spin animation
-        wheel.style.transition = 'transform 3s cubic-bezier(0.25, 0.1, 0.25, 1)';
-        wheel.style.transform = `rotate(${finalRotation}deg)`;
+        // Apply consistent spin animation
+        wheel.style.transform = `rotate(${currentRotation}deg)`;
+        
+        console.log("Target angle:", targetAngle);
+        console.log("Current rotation:", currentRotation);
 
         // Update map
         if (selectedStation['GTFS Latitude'] && selectedStation['GTFS Longitude']) {
